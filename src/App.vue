@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { injectSpeedInsights } from "@vercel/speed-insights";
 
 const currentYear = new Date().getFullYear();
 const isMenuOpen = ref(false);
@@ -203,6 +204,9 @@ function handleSubmit() {
 }
 
 onMounted(() => {
+  // Initialize Vercel Speed Insights
+  injectSpeedInsights({ framework: 'vue' });
+
   const sections = navLinks
     .map((link) => document.getElementById(link.id))
     .filter(Boolean);
