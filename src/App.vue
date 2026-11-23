@@ -8,7 +8,9 @@ const menuToggle = ref(null);
 const isMapOpen = ref(false);
 const selectedPlan = ref("");
 const activeSection = ref("");
+const activeProgramIndex = ref(0);
 let sectionObserver;
+let plateMotion;
 
 const navLinks = [
   { label: "Program", href: "#program", id: "program" },
@@ -46,27 +48,30 @@ const trainingLog = [
 
 const programs = [
   {
+    id: "foundations",
     name: "Strength Foundations",
     description:
       "A coached entry point for lifters who want cleaner movement, smarter loading, and repeatable gym habits.",
     level: "Beginner to returning lifter",
-    duration: "50 minutes",
+    durationMinutes: 50,
     benefits: ["Technique audit", "Basic strength plan", "Small group feedback"],
   },
   {
+    id: "coaching",
     name: "Personal Coaching",
     description:
       "One-to-one sessions built around your training history, schedule, and specific strength goals.",
     level: "All experience levels",
-    duration: "60 minutes",
+    durationMinutes: 60,
     benefits: ["Individual programming", "Progress reviews", "Mobility support"],
   },
   {
+    id: "performance",
     name: "Performance Training",
     description:
       "Focused coaching for experienced lifters who want stronger pulls, presses, carries, and athletic output.",
     level: "Intermediate and advanced",
-    duration: "75 minutes",
+    durationMinutes: 75,
     benefits: ["Higher intensity blocks", "Recovery tracking", "Power development"],
   },
 ];
@@ -152,6 +157,50 @@ const successMessage = ref("");
 
 const preferredPrograms = programs.map((program) => program.name);
 
+function navigatePrograms(event) {
+  const current = activeProgramIndex.value;
+  const last = programs.length - 1;
+  let next;
+
+  switch (event.key) {
+    case "ArrowDown":
+      next = current === last ? 0 : current + 1;
+      break;
+    case "ArrowUp":
+      next = current === 0 ? last : current - 1;
+      break;
+    case "Home":
+      next = 0;
+      break;
+    case "End":
+      next = last;
+      break;
+    default:
+      return;
+  }
+
+  event.preventDefault();
+  activeProgramIndex.value = next;
+  event.currentTarget.querySelectorAll('[role="tab"]')[next].focus();
+}
+
+function moveProgramPlate(event) {
+  if (event.pointerType !== "mouse" || !plateMotion?.matches) return;
+
+  const surface = event.currentTarget;
+  const bounds = surface.getBoundingClientRect();
+  const horizontal = (event.clientX - bounds.left) / bounds.width - 0.5;
+  const vertical = (event.clientY - bounds.top) / bounds.height - 0.5;
+
+  surface.style.setProperty("--plate-tilt-x", `${-vertical * 20}deg`);
+  surface.style.setProperty("--plate-tilt-y", `${horizontal * 24}deg`);
+}
+
+function resetProgramPlate(event) {
+  event.currentTarget.style.removeProperty("--plate-tilt-x");
+  event.currentTarget.style.removeProperty("--plate-tilt-y");
+}
+
 function closeMenu() {
   isMenuOpen.value = false;
 }
@@ -216,6 +265,9 @@ async function handleSubmit(event) {
 }
 
 onMounted(() => {
+  plateMotion = window.matchMedia(
+    "(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
+  );
   const sections = navLinks
     .map((link) => document.getElementById(link.id))
     .filter(Boolean);
@@ -324,24 +376,68 @@ onBeforeUnmount(() => {
             <h2 id="program-title">Training programs</h2>
           </div>
 
-          <div class="card-grid three-column">
-            <article class="info-card" v-for="program in programs" :key="program.name">
-              <h3>{{ program.name }}</h3>
-              <p class="card-kicker">{{ program.level }}</p>
-              <p>{{ program.description }}</p>
-              <dl class="meta-list">
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{{ program.duration }}</dd>
+          <div class="program-showcase">
+            <div
+              class="program-selector"
+              role="tablist"
+              aria-labelledby="program-title"
+              aria-orientation="vertical"
+              :style="{ '--program-index': activeProgramIndex, '--program-count': programs.length }"
+              @keydown="navigatePrograms"
+            >
+              <button
+                v-for="(program, index) in programs"
+                :id="'program-tab-' + program.id"
+                :key="program.id"
+                class="program-tab"
+                type="button"
+                role="tab"
+                :aria-selected="activeProgramIndex === index"
+                :aria-controls="'program-panel-' + program.id"
+                :tabindex="activeProgramIndex === index ? 0 : -1"
+                @click="activeProgramIndex = index"
+              >
+                {{ program.name }}
+              </button>
+            </div>
+
+            <div class="program-previews">
+              <article
+                v-for="(program, index) in programs"
+                :id="'program-panel-' + program.id"
+                :key="program.id"
+                class="program-preview"
+                :class="'program-preview--' + program.id"
+                role="tabpanel"
+                :aria-labelledby="'program-tab-' + program.id"
+                :hidden="activeProgramIndex !== index"
+                tabindex="0"
+              >
+                <div
+                  class="program-visual"
+                  @pointermove="moveProgramPlate"
+                  @pointerleave="resetProgramPlate"
+                >
+                  <div class="program-plate">
+                    <div class="program-plate-stamp">
+                      <strong>{{ program.durationMinutes }}</strong>
+                      <span>minutes per session</span>
+                    </div>
+                  </div>
                 </div>
-              </dl>
-              <ul class="check-list">
-                <li v-for="benefit in program.benefits" :key="benefit">{{ benefit }}</li>
-              </ul>
-              <a class="card-action" href="#booking" @click="form.program = program.name">
-                Try {{ program.name }}
-              </a>
-            </article>
+                <div class="program-detail">
+                  <h3>{{ program.name }}</h3>
+                  <p class="card-kicker">{{ program.level }}</p>
+                  <p>{{ program.description }}</p>
+                  <ul class="check-list">
+                    <li v-for="benefit in program.benefits" :key="benefit">{{ benefit }}</li>
+                  </ul>
+                  <a class="btn-primary" href="#booking" @click="form.program = program.name">
+                    Try this program
+                  </a>
+                </div>
+              </article>
+            </div>
           </div>
         </div>
       </section>
