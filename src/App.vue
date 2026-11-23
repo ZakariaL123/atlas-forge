@@ -1,8 +1,12 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import heroPhoto from "./assets/hero-bg.jpg";
 
 const currentYear = new Date().getFullYear();
 const isMenuOpen = ref(false);
+const menuToggle = ref(null);
+const isMapOpen = ref(false);
+const selectedPlan = ref("");
 const activeSection = ref("");
 let sectionObserver;
 
@@ -152,6 +156,13 @@ function closeMenu() {
   isMenuOpen.value = false;
 }
 
+function dismissMenu(event) {
+  if (event.key !== "Escape" || !isMenuOpen.value) return;
+
+  closeMenu();
+  menuToggle.value?.focus();
+}
+
 function validateForm() {
   Object.keys(errors).forEach((key) => delete errors[key]);
 
@@ -189,17 +200,19 @@ function resetForm() {
   form.message = "";
 }
 
-function handleSubmit() {
+async function handleSubmit(event) {
   successMessage.value = "";
 
   if (!validateForm()) {
+    const bookingForm = event.currentTarget;
+    await nextTick();
+    bookingForm.querySelector('[aria-invalid="true"]')?.focus();
     return;
   }
 
-  // Connect Formspree, EmailJS, Firebase, or a custom API here when this demo needs real submissions.
-  successMessage.value =
-    "Request received. This demo form is ready for a real booking service when you are.";
+  successMessage.value = "Demo complete. Your sample booking passed validation.";
   resetForm();
+  selectedPlan.value = "";
 }
 
 onMounted(() => {
@@ -215,7 +228,7 @@ onMounted(() => {
         }
       });
     },
-    { rootMargin: "-35% 0px -50% 0px", threshold: 0.1 },
+    { rootMargin: "-35% 0px -50% 0px", threshold: 0 },
   );
 
   sections.forEach((section) => sectionObserver.observe(section));
@@ -228,21 +241,25 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <nav class="site-nav" aria-label="Primary navigation">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <nav
+      class="site-nav"
+      aria-label="Primary navigation"
+      @keydown="dismissMenu"
+      @focusout="!$event.currentTarget.contains($event.relatedTarget) && closeMenu()"
+    >
       <div class="content nav-content">
         <a class="brand" href="#top" @click="closeMenu">ATLAS FORGE</a>
 
         <button
+          ref="menuToggle"
           class="menu-toggle"
           type="button"
-          aria-label="Toggle navigation menu"
           :aria-expanded="isMenuOpen"
           aria-controls="primary-menu"
           @click="isMenuOpen = !isMenuOpen"
         >
-          <span></span>
-          <span></span>
-          <span></span>
+          {{ isMenuOpen ? "Close" : "Menu" }}
         </button>
 
         <div id="primary-menu" class="nav-menu" :class="{ open: isMenuOpen }">
@@ -250,7 +267,7 @@ onBeforeUnmount(() => {
             v-for="link in navLinks"
             :key="link.id"
             class="nav-link"
-            :class="{ active: activeSection === link.id }"
+            :aria-current="activeSection === link.id ? 'location' : undefined"
             :href="link.href"
             @click="closeMenu"
           >
@@ -260,30 +277,39 @@ onBeforeUnmount(() => {
       </div>
     </nav>
 
-    <header id="top" class="hero">
-      <div class="content hero-content">
-        <p class="eyebrow">Cable-machine strength studio &middot; Shenzhen</p>
-        <h1>THE WEIGHT DOESN'T CARE HOW YOU FEEL</h1>
-        <p class="hero-copy">
-          No mirrors. No machines that lift it for you. Open-floor cable stations,
-          small coached groups, and a studio built for people who already know why
-          they showed up.
-        </p>
-        <div class="hero-buttons" aria-label="Hero actions">
-          <a class="btn-primary" href="#booking">Book a free session</a>
-          <a class="btn-ghost" href="#program">See the program</a>
+    <main id="main-content" tabindex="-1">
+      <header id="top" class="hero">
+        <div class="content hero-content">
+          <div class="hero-intro">
+            <h1>
+              <span>The weight</span>
+              <span>doesn’t care</span>
+              <span>how you feel</span>
+            </h1>
+            <p class="hero-copy">Open-floor cable stations and small-group strength coaching.</p>
+            <div class="hero-buttons">
+              <a class="btn-primary" href="#booking">Try the booking demo</a>
+              <a class="btn-ghost" href="#program">See the programs</a>
+            </div>
+            <p class="concept-note">A fictional strength studio in Shenzhen</p>
+          </div>
+          <img
+            class="hero-photo"
+            :src="heroPhoto"
+            alt="Black weight plates mounted on a steel strength machine"
+            width="2400"
+            height="3600"
+            fetchpriority="high"
+          />
         </div>
-      </div>
-    </header>
+      </header>
 
-    <main>
       <section class="training-overview" aria-labelledby="training-title">
         <div class="content">
-          <p class="eyebrow">// Training log</p>
-          <h2 id="training-title">WHAT YOU'RE SIGNING UP FOR</h2>
+          <h2 id="training-title">On the training floor</h2>
 
           <div class="log">
-            <div class="log-row reveal" v-for="row in trainingLog" :key="row.set">
+            <div class="log-row" v-for="row in trainingLog" :key="row.set">
               <span>{{ row.set }}</span>
               <span>{{ row.focus }}</span>
               <span>{{ row.detail }}</span>
@@ -295,14 +321,13 @@ onBeforeUnmount(() => {
       <section id="program" class="section-anchor" aria-labelledby="program-title">
         <div class="content">
           <div class="section-heading">
-            <p class="eyebrow">// Program</p>
-            <h2 id="program-title">COACHED WORK THAT HOLDS UP UNDER LOAD</h2>
+            <h2 id="program-title">Training programs</h2>
           </div>
 
           <div class="card-grid three-column">
-            <article class="info-card reveal" v-for="program in programs" :key="program.name">
-              <p class="card-kicker">{{ program.level }}</p>
+            <article class="info-card" v-for="program in programs" :key="program.name">
               <h3>{{ program.name }}</h3>
+              <p class="card-kicker">{{ program.level }}</p>
               <p>{{ program.description }}</p>
               <dl class="meta-list">
                 <div>
@@ -313,7 +338,9 @@ onBeforeUnmount(() => {
               <ul class="check-list">
                 <li v-for="benefit in program.benefits" :key="benefit">{{ benefit }}</li>
               </ul>
-              <a class="card-action" href="#booking">Start with this</a>
+              <a class="card-action" href="#booking" @click="form.program = program.name">
+                Try {{ program.name }}
+              </a>
             </article>
           </div>
         </div>
@@ -322,25 +349,26 @@ onBeforeUnmount(() => {
       <section id="membership" class="section-anchor" aria-labelledby="membership-title">
         <div class="content">
           <div class="section-heading">
-            <p class="eyebrow">// Membership</p>
-            <h2 id="membership-title">SIMPLE PLANS FOR CONSISTENT TRAINING</h2>
+            <h2 id="membership-title">Membership plans</h2>
           </div>
 
           <div class="card-grid three-column">
             <article
-              class="price-card reveal"
+              class="price-card"
               :class="{ recommended: plan.recommended }"
               v-for="plan in memberships"
               :key="plan.name"
             >
-              <p v-if="plan.recommended" class="plan-badge">Recommended</p>
               <h3>{{ plan.name }}</h3>
+              <p v-if="plan.recommended" class="plan-badge">Recommended</p>
               <p class="price">{{ plan.price }}<span>/month</span></p>
               <p class="sessions">{{ plan.sessions }}</p>
               <ul class="check-list">
                 <li v-for="feature in plan.features" :key="feature">{{ feature }}</li>
               </ul>
-              <a class="card-action" href="#booking">Choose {{ plan.name }}</a>
+              <a class="card-action" href="#booking" @click="selectedPlan = plan.name">
+                Choose {{ plan.name }}
+              </a>
             </article>
           </div>
         </div>
@@ -349,22 +377,20 @@ onBeforeUnmount(() => {
       <section id="coaches" class="section-anchor" aria-labelledby="coaches-title">
         <div class="content">
           <div class="section-heading">
-            <p class="eyebrow">// Coaches</p>
-            <h2 id="coaches-title">CLEAR EYES ON EVERY REP</h2>
+            <h2 id="coaches-title">Meet the coaches</h2>
           </div>
 
           <div class="coach-grid">
-            <article class="coach-card reveal" v-for="coach in coaches" :key="coach.name">
+            <article class="coach-card" v-for="coach in coaches" :key="coach.name">
               <div
                 class="coach-photo"
-                role="img"
-                :aria-label="`${coach.name}, ${coach.role}`"
+                aria-hidden="true"
               >
                 {{ coach.initials }}
               </div>
               <div>
-                <p class="card-kicker">{{ coach.role }}</p>
                 <h3>{{ coach.name }}</h3>
+                <p class="card-kicker">{{ coach.role }}</p>
                 <p class="coach-meta">{{ coach.experience }} / {{ coach.specialization }}</p>
                 <p>{{ coach.bio }}</p>
               </div>
@@ -376,12 +402,11 @@ onBeforeUnmount(() => {
       <section class="testimonials" aria-labelledby="testimonials-title">
         <div class="content">
           <div class="section-heading">
-            <p class="eyebrow">// Demo member notes</p>
-            <h2 id="testimonials-title">WHAT THE FLOOR FEELS LIKE</h2>
+            <h2 id="testimonials-title">Fictional member stories</h2>
           </div>
 
           <div class="card-grid three-column">
-            <figure class="quote-card reveal" v-for="review in testimonials" :key="review.name">
+            <figure class="quote-card" v-for="review in testimonials" :key="review.name">
               <blockquote>{{ review.quote }}</blockquote>
               <figcaption>{{ review.name }} / {{ review.program }}</figcaption>
             </figure>
@@ -392,63 +417,62 @@ onBeforeUnmount(() => {
       <section id="location" class="section-anchor" aria-labelledby="location-title">
         <div class="content location-grid">
           <div>
-            <p class="eyebrow">// Location</p>
-            <h2 id="location-title">A SHENZHEN TRAINING FLOOR BUILT FOR FOCUS</h2>
-            <p>
-              Atlas Forge is presented as a Shenzhen-based portfolio concept. The
-              location details below are structured so a real studio address,
-              transport notes, phone, and email can be added quickly.
-            </p>
-            <div class="location-details">
+            <h2 id="location-title">The Shenzhen concept</h2>
+            <p>Shenzhen is the setting for this portfolio concept. Atlas Forge has no physical address.</p>
+            <dl class="location-details">
               <div>
-                <h3>Studio Area</h3>
-                <p>Shenzhen, China. Exact address shared after booking.</p>
+                <dt>Setting</dt>
+                <dd>Shenzhen, China</dd>
               </div>
               <div>
-                <h3>Opening Hours</h3>
-                <p>Monday to Sunday, 6:00 AM to 10:00 PM.</p>
+                <dt>Sample opening hours</dt>
+                <dd>Daily, 6:00 AM to 10:00 PM</dd>
               </div>
-              <div>
-                <h3>Transport</h3>
-                <p>Near metro and bus connections. Add station details later.</p>
-              </div>
-              <div>
-                <h3>Contact</h3>
-                <p>+86 000 0000 0000<br />hello@atlasforge.example</p>
-              </div>
-            </div>
+            </dl>
           </div>
 
-          <div class="map-placeholder">
-            <iframe
-              title="OpenStreetMap map centered near Shenzhen"
-              src="https://www.openstreetmap.org/export/embed.html?bbox=113.8500%2C22.4300%2C114.2500%2C22.6800&amp;layer=mapnik&amp;marker=22.5431%2C114.0579"
-              loading="lazy"
-              referrerpolicy="no-referrer"
-            ></iframe>
+          <div class="map-panel">
+            <h3>Explore the area</h3>
+            <p id="map-note">The map shows Shenzhen without a studio pin. Opening it connects to OpenStreetMap.</p>
+            <button
+              class="btn-ghost"
+              type="button"
+              :aria-expanded="isMapOpen"
+              aria-controls="studio-area-map"
+              aria-describedby="map-note"
+              @click="isMapOpen = !isMapOpen"
+            >
+              {{ isMapOpen ? "Hide area map" : "Show area map" }}
+            </button>
+            <div id="studio-area-map" :hidden="!isMapOpen" class="map-frame">
+              <iframe
+                v-if="isMapOpen"
+                title="OpenStreetMap area overview of Shenzhen"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=113.8500%2C22.4300%2C114.2500%2C22.6800&amp;layer=mapnik"
+                sandbox="allow-scripts allow-same-origin"
+                referrerpolicy="no-referrer"
+              ></iframe>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="contact" class="section-anchor contact-section" aria-labelledby="booking-title">
-        <div id="booking" class="content booking-content">
+        <div id="booking" class="content booking-content" tabindex="-1">
           <div>
-            <p class="eyebrow">// First session</p>
-            <h2 id="booking-title">BOOK YOUR FREE SESSION</h2>
-            <p>
-              Tell us where you are starting from. A coach can review the request and
-              suggest the best first session once this demo form is connected.
-            </p>
+            <h2 id="booking-title">Try booking a session</h2>
+            <p>Use sample details to try the form. Your details stay on this page and no session is reserved.</p>
+            <p v-if="selectedPlan" class="chosen-plan">Selected demo plan: {{ selectedPlan }}</p>
           </div>
 
-          <form class="booking-form" novalidate @submit.prevent="handleSubmit">
+          <form class="booking-form" autocomplete="off" novalidate @submit.prevent="handleSubmit">
             <div class="field-group">
               <label for="name">Full name</label>
               <input
                 id="name"
                 v-model="form.name"
                 type="text"
-                autocomplete="name"
+                required
                 :aria-invalid="Boolean(errors.name)"
                 :aria-describedby="errors.name ? 'name-error' : undefined"
               />
@@ -461,7 +485,7 @@ onBeforeUnmount(() => {
                 id="email"
                 v-model="form.email"
                 type="email"
-                autocomplete="email"
+                required
                 :aria-invalid="Boolean(errors.email)"
                 :aria-describedby="errors.email ? 'email-error' : undefined"
               />
@@ -474,7 +498,7 @@ onBeforeUnmount(() => {
                 id="phone"
                 v-model="form.phone"
                 type="tel"
-                autocomplete="tel"
+                required
                 :aria-invalid="Boolean(errors.phone)"
                 :aria-describedby="errors.phone ? 'phone-error' : undefined"
               />
@@ -486,6 +510,7 @@ onBeforeUnmount(() => {
               <select
                 id="preferred-program"
                 v-model="form.program"
+                required
                 :aria-invalid="Boolean(errors.program)"
                 :aria-describedby="errors.program ? 'program-error' : undefined"
               >
@@ -505,6 +530,7 @@ onBeforeUnmount(() => {
                 id="preferred-date"
                 v-model="form.date"
                 type="date"
+                required
                 :aria-invalid="Boolean(errors.date)"
                 :aria-describedby="errors.date ? 'date-error' : undefined"
               />
@@ -521,7 +547,7 @@ onBeforeUnmount(() => {
               ></textarea>
             </div>
 
-            <button class="submit-button full-span" type="submit">Request Session</button>
+            <button class="submit-button full-span" type="submit">Validate demo booking</button>
             <p v-if="successMessage" class="success-message full-span" role="status">
               {{ successMessage }}
             </p>
@@ -546,16 +572,8 @@ onBeforeUnmount(() => {
         </div>
 
         <div>
-          <h2>Contact</h2>
-          <p>+86 000 0000 0000</p>
-          <p>hello@atlasforge.example</p>
-        </div>
-
-        <div>
-          <h2>Social</h2>
-          <span class="footer-placeholder">Instagram to be added</span>
-          <span class="footer-placeholder">WeChat to be added</span>
-          <span class="footer-placeholder">LinkedIn to be added</span>
+          <h2>Project</h2>
+          <a href="https://github.com/ZakariaL123/atlas-forge">View source code</a>
         </div>
       </div>
       <p class="footer-bottom">
